@@ -61,7 +61,8 @@ class RingBuffer:
             return np.zeros(n, dtype=np.float32)
         if pos < 0:
             out = np.zeros(n, dtype=np.float32)
-            out[pos:] = self.read(0, n + pos)
+            tail = self.read(0, n + pos)  # 0 < n+pos < n
+            out[n - len(tail):] = tail
             return out
         idx = (pos + np.arange(n)) % self.cap
         return self.buf[idx].copy()
@@ -239,7 +240,10 @@ def start_streams(args, cz):
         cz.asr_q.put(b)
 
     def out_cb(outdata, frames, t, status):
-        outdata[:, 0] = cz.pull(frames)
+        try:
+            outdata[:, 0] = cz.pull(frames)
+        except Exception:
+            outdata[:, 0] = 0
         for c in range(1, outdata.shape[1]):
             outdata[:, c] = outdata[:, 0]
 
