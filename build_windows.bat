@@ -12,6 +12,13 @@ if not exist model\tokens.txt (
     del model.tar.bz2
 )
 
+if not exist wordlists\*.dat (
+    echo Fetching default word list...
+    mkdir wordlists 2>nul
+    curl -sL -o wordlists\profanity.txt "https://raw.githubusercontent.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words/master/en"
+    python pack_lists.py
+)
+
 py -m venv .venv || python -m venv .venv
 call .venv\Scripts\activate.bat
 pip install -r requirements.txt

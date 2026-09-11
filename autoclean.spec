@@ -2,7 +2,9 @@
 import os
 from PyInstaller.utils.hooks import collect_all
 
-datas = [("model", "model"), ("wordlists", "wordlists")]
+datas = [("model", "model")]
+if os.path.exists("wordlists"):
+    datas.append(("wordlists", "wordlists"))
 if os.path.exists("words.txt"):
     datas.append(("words.txt", "."))
 binaries = []

@@ -54,12 +54,13 @@ To bypass: switch the Windows output device back to real speakers.
   timestamps ~150–300ms late. Tune until a flagged word is fully muted without
   clipping neighbors.
 - **Pad**: extra mute before each flagged word.
-- **Word lists**: checkboxes in the GUI select any combination of curated
-  lists (`wordlists/profanity`, `sexual`, `slurs`), plus an optional custom
-  list file (`words.txt` — yours, never committed). One word per line,
-  `#` comments. Curated sources live as `wordlists/*.txt` locally and are
-  packed to obfuscated `*.dat` blobs via `pack_lists.py` before committing
-  (obfuscation only — keeps the text out of casual view, not encryption).
+- **Word lists**: checkboxes in the GUI select any combination of lists in
+  `wordlists/`, plus an optional custom list (`words.txt`). One word per
+  line, `#` comments. **List content never lives in the repo** — the dir is
+  gitignored; bootstrap defaults with `./fetch_lists.sh` (pulls the public
+  LDNOOBW list) or copy your own `wordlists/*.txt|*.dat` in. Lists are
+  stored locally as obfuscated `.dat` blobs (`pack_lists.py` repacks from
+  `.txt` sources) — obfuscation, not encryption.
 - **Test word(s)**: decoy words censored at runtime for tuning without
   profanity; never written to any list.
 - Replace mode: silence or beep.
