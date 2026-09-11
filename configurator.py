@@ -37,6 +37,7 @@ DEFAULTS = {
     "replace": "silence",
     "threads": 2,
     "wordlist": WORDLIST_PATH,
+    "test_word": "",
 }
 
 
@@ -144,13 +145,21 @@ class App(tk.Tk):
                         variable=self.vars["replace"]).pack(side="left")
         rf.grid(row=5, column=1, **pad)
 
-        ttk.Label(self, text="Word list").grid(row=6, column=0, **pad)
+        ttk.Label(self, text="Test word(s)").grid(row=6, column=0, **pad)
+        tf = ttk.Frame(self)
+        ttk.Entry(tf, textvariable=self.vars["test_word"],
+                  width=28).pack(side="left")
+        ttk.Label(tf, text=" censored too; for testing, comma-sep",
+                  foreground="#666").pack(side="left")
+        tf.grid(row=6, column=1, **pad)
+
+        ttk.Label(self, text="Word list").grid(row=7, column=0, **pad)
         wf = ttk.Frame(self)
         ttk.Entry(wf, textvariable=self.vars["wordlist"],
                   width=28).pack(side="left")
         ttk.Button(wf, text="…", width=3, command=self.browse).pack(side="left")
         ttk.Button(wf, text="Edit", command=self.edit_words).pack(side="left")
-        wf.grid(row=6, column=1, **pad)
+        wf.grid(row=7, column=1, **pad)
 
         bf = ttk.Frame(self)
         self.start_btn = ttk.Button(bf, text="Start", command=self.toggle)
@@ -159,11 +168,11 @@ class App(tk.Tk):
                    command=self.save_config).pack(side="left", padx=6)
         self.status = ttk.Label(bf, text="stopped")
         self.status.pack(side="left", padx=8)
-        bf.grid(row=7, column=0, columnspan=3, **pad)
+        bf.grid(row=8, column=0, columnspan=3, **pad)
 
         self.logbox = scrolledtext.ScrolledText(self, width=62, height=12,
                                               state="disabled")
-        self.logbox.grid(row=8, column=0, columnspan=3, padx=8, pady=(0, 8))
+        self.logbox.grid(row=9, column=0, columnspan=3, padx=8, pady=(0, 8))
 
     def browse(self):
         p = filedialog.askopenfilename(initialdir=APP_DIR,
@@ -214,6 +223,7 @@ class App(tk.Tk):
                 replace=self.vars["replace"].get(),
                 threads=int(self.cfg.get("threads", 2)),
                 wordlist=self.vars["wordlist"].get(),
+                test_word=self.vars["test_word"].get(),
                 model_dir=autoclean.MODEL_DIR_DEFAULT,
                 provider="cpu", beep_freq=1000, beep_gain=0.4,
                 simulate=None, out=None,
@@ -224,6 +234,8 @@ class App(tk.Tk):
             self.status.config(text="running")
             self.gui_log(f"started: delay={args.delay}s "
                          f"offset={args.ts_offset_ms}ms pad={args.pad_ms}ms")
+            if args.test_word.strip():
+                self.gui_log(f"test word(s) armed: {args.test_word}")
         except Exception as e:
             self.engine = None
             self.status.config(text=f"error: {e}")

@@ -82,7 +82,13 @@ class Censor:
         self.beep_freq = args.beep_freq
         self.beep_gain = args.beep_gain
         self.replace = args.replace
-        self.banned = banned
+        self.banned = set(banned)
+        # decoy word(s) armed for testing — not part of the word list
+        tw = getattr(args, "test_word", "") or ""
+        for w in tw.split(","):
+            w = w.strip().lower()
+            if w:
+                self.banned.add(w)
         self.running = True
         self.missed = 0
         self.log = print  # overridable, e.g. by the configurator GUI
@@ -318,6 +324,9 @@ def main():
     ap.add_argument("--output-device", default=None)
     ap.add_argument("--delay", type=float, default=1.0)
     ap.add_argument("--wordlist", default="words.txt")
+    ap.add_argument("--test-word", default="",
+                    help="extra word(s) to censor while testing, "
+                         "comma-separated; not added to the word list")
     ap.add_argument("--model-dir", default=MODEL_DIR_DEFAULT)
     ap.add_argument("--provider", default="cpu")
     ap.add_argument("--threads", type=int, default=2)
