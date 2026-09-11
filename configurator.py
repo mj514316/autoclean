@@ -226,6 +226,7 @@ class App(tk.Tk):
                 test_word=self.vars["test_word"].get(),
                 model_dir=autoclean.MODEL_DIR_DEFAULT,
                 provider="cpu", beep_freq=1000, beep_gain=0.4,
+                endpoint_silence=0.7, settle_ms=250,
                 simulate=None, out=None,
             )
             self.engine = autoclean.Engine(args, log=self.gui_log)

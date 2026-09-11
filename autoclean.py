@@ -102,13 +102,29 @@ class Censor:
             sample_rate=SR,
             feature_dim=80,
             enable_endpoint_detection=True,
+            # shorter trailing silence -> utterance-final words get flagged
+            # sooner (they can only close via endpoint, not a next word)
+            rule2_min_trailing_silence=getattr(args, "endpoint_silence", 0.7),
             provider=args.provider,
         )
-        self.stream = self.recognizer.create_stream()
-        self.seg_origin = 0       # absolute sample count when stream last reset
-        self.fed = 0              # absolute samples fed to ASR
-        self.words_done = 0       # words already evaluated (closed)
+        self.fed = 0              # absolute input samples fed to ASR
+        self.eval_state = {}      # word index -> last-evaluated token end idx
+        self.settle_samples = int(getattr(args, "settle_ms", 250)
+                                  * SR / 1000)
         self.punct = str.maketrans("", "", string.punctuation)
+        self.warmup = int(1.0 * SR)
+        self.stream = self.recognizer.create_stream()
+        self._warm()
+
+    def _warm(self):
+        """Fresh streams drop ~1s of initial audio head (decoder needs
+        priming). Feed silence so real speech isn't eaten; timestamps are
+        then relative to stream-base = fed - warmup."""
+        w = np.zeros(self.warmup, dtype=np.float32)
+        self.stream.accept_waveform(SR, w)
+        while self.recognizer.is_ready(self.stream):
+            self.recognizer.decode_stream(self.stream)
+        self.stream_base = self.fed - self.warmup
 
     # ---------- ASR side ----------
     def feed(self, block: np.ndarray):
@@ -119,7 +135,7 @@ class Censor:
         self._scan_tokens(final=self.recognizer.is_endpoint(self.stream))
         if self.recognizer.is_endpoint(self.stream):
             self.recognizer.reset(self.stream)
-            self.seg_origin = self.fed
+            self._warm()
 
     def _scan_tokens(self, final: bool):
         tokens = self.recognizer.tokens(self.stream)
@@ -132,28 +148,33 @@ class Censor:
             else:
                 words[-1][1:] = words[-1][1], i + 1
                 words[-1][0] += tok.strip()
-        # evaluate all words except the last (still being decoded) unless final
-        limit = len(words) if final else max(0, len(words) - 1)
-        for k in range(self.words_done, limit):
+        # evaluate all words except the last (still being decoded), unless it
+        # is "settled" — newest token well behind the live feed — or final
+        now_pos = self.fed - self.stream_base
+        settled = bool(ts) and (now_pos - ts[-1] * SR) > self.settle_samples
+        limit = len(words) if (final or settled) else max(0, len(words) - 1)
+        for k in range(limit):
             text, i0, i1 = (words[k][0].translate(self.punct).lower(),
                             words[k][1], words[k][2])
+            if self.eval_state.get(k, -1) >= i1:
+                continue
+            self.eval_state[k] = i1
             if text and text in self.banned:
-                start = self.seg_origin + int(ts[i0] * SR) - self.ts_offset \
+                start = self.stream_base + int(ts[i0] * SR) - self.ts_offset \
                     - self.pad
                 # end at the next word's start (same late bias) so the mute
                 # covers the word's tail without eating the next word;
                 # fall back to the word's own last token if utterance-final
                 if k + 1 < len(words):
-                    end = self.seg_origin + int(ts[words[k + 1][1]] * SR) \
+                    end = self.stream_base + int(ts[words[k + 1][1]] * SR) \
                         - self.ts_offset
                 else:
-                    end = self.seg_origin + int(ts[i1 - 1] * SR) \
+                    end = self.stream_base + int(ts[i1 - 1] * SR) \
                         - self.ts_offset + int(0.04 * SR) + self.pad
                 end = max(end, start + int(0.15 * SR))
                 self.flag(text, start, end)
-        self.words_done = max(self.words_done, limit)
         if final:
-            self.words_done = 0
+            self.eval_state.clear()
 
     def flag(self, word, start, end):
         headroom = (end - max(self.play_pos, 0)) / SR
@@ -334,6 +355,12 @@ def main():
     ap.add_argument("--replace", choices=["silence", "beep"], default="silence")
     ap.add_argument("--ts-offset-ms", type=int, default=260,
                     help="shift beep windows earlier by this many ms")
+    ap.add_argument("--settle-ms", type=int, default=250,
+                    help="ms a word's last token must lag the live feed "
+                         "before an utterance-final word is trusted")
+    ap.add_argument("--endpoint-silence", type=float, default=0.7,
+                    help="seconds of trailing silence before a word at the "
+                         "end of a sentence is confirmed (lower = less lag)")
     ap.add_argument("--beep-freq", type=float, default=1000)
     ap.add_argument("--beep-gain", type=float, default=0.4)
     ap.add_argument("--simulate", default=None, help="wav file input (16k mono)")
