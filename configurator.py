@@ -36,9 +36,21 @@ DEFAULTS = {
     "pad_ms": 60,
     "replace": "silence",
     "threads": 2,
-    "wordlist": WORDLIST_PATH,
+    "wordlist": WORDLIST_PATH,   # custom list file
+    "custom_enabled": True,
+    "lists": "profanity",        # comma-separated names in wordlists/
     "test_word": "",
 }
+
+
+def available_lists():
+    """Discover curated list names from wordlists/*.txt."""
+    d = autoclean.respath("wordlists")
+    try:
+        return sorted(os.path.splitext(f)[0] for f in os.listdir(d)
+                      if f.endswith((".txt", ".dat")))
+    except OSError:
+        return []
 
 
 def ensure_wordlist():
@@ -74,10 +86,11 @@ class App(tk.Tk):
             return dict(DEFAULTS)
 
     def save_config(self):
-        cfg = {k: self.vars[k].get() for k in self.vars}
+        cfg = {k: v.get() for k, v in self.vars.items()}
+        cfg["lists"] = ",".join(n for n, v in self.list_vars.items()
+                                if v.get())
         cfg["input_device"] = self.dev_index(self.in_dev, "in")
         cfg["output_device"] = self.dev_index(self.out_dev, "out")
-        cfg["wordlist"] = self.vars["wordlist"].get()
         with open(CONFIG_PATH, "w") as f:
             json.dump(cfg, f, indent=2)
 
@@ -153,13 +166,33 @@ class App(tk.Tk):
                   foreground="#666").pack(side="left")
         tf.grid(row=6, column=1, **pad)
 
-        ttk.Label(self, text="Word list").grid(row=7, column=0, **pad)
+        ttk.Label(self, text="Word lists").grid(row=7, column=0, **pad)
+        lf = ttk.Frame(self)
+        self.list_vars = {}
+        enabled = set(str(self.cfg.get("lists", "")).split(","))
+        names = sorted(set(available_lists())) or \
+            ["(none found in wordlists/)"]
+        for name in names:
+            if name.startswith("("):
+                ttk.Label(lf, text=name, foreground="#a00").pack(side="left")
+                continue
+            v = tk.BooleanVar(value=name in enabled)
+            self.list_vars[name] = v
+            ttk.Checkbutton(lf, text=name, variable=v).pack(side="left",
+                                                          padx=(0, 10))
+        lf.grid(row=7, column=1, columnspan=2, **pad)
+
+        ttk.Label(self, text="Custom list").grid(row=8, column=0, **pad)
         wf = ttk.Frame(self)
+        self.vars["custom_enabled"] = tk.BooleanVar(
+            value=bool(self.cfg.get("custom_enabled", True)))
+        ttk.Checkbutton(wf, text="use",
+                        variable=self.vars["custom_enabled"]).pack(side="left")
         ttk.Entry(wf, textvariable=self.vars["wordlist"],
-                  width=28).pack(side="left")
+                  width=26).pack(side="left")
         ttk.Button(wf, text="…", width=3, command=self.browse).pack(side="left")
         ttk.Button(wf, text="Edit", command=self.edit_words).pack(side="left")
-        wf.grid(row=7, column=1, **pad)
+        wf.grid(row=8, column=1, columnspan=2, **pad)
 
         bf = ttk.Frame(self)
         self.start_btn = ttk.Button(bf, text="Start", command=self.toggle)
@@ -168,11 +201,11 @@ class App(tk.Tk):
                    command=self.save_config).pack(side="left", padx=6)
         self.status = ttk.Label(bf, text="stopped")
         self.status.pack(side="left", padx=8)
-        bf.grid(row=8, column=0, columnspan=3, **pad)
+        bf.grid(row=9, column=0, columnspan=3, **pad)
 
         self.logbox = scrolledtext.ScrolledText(self, width=62, height=12,
                                               state="disabled")
-        self.logbox.grid(row=9, column=0, columnspan=3, padx=8, pady=(0, 8))
+        self.logbox.grid(row=10, column=0, columnspan=3, padx=8, pady=(0, 8))
 
     def browse(self):
         p = filedialog.askopenfilename(initialdir=APP_DIR,
@@ -222,7 +255,10 @@ class App(tk.Tk):
                 pad_ms=int(float(self.vars["pad_ms"].get())),
                 replace=self.vars["replace"].get(),
                 threads=int(self.cfg.get("threads", 2)),
-                wordlist=self.vars["wordlist"].get(),
+                lists=",".join(n for n, v in self.list_vars.items()
+                               if v.get()),
+                wordlist=(self.vars["wordlist"].get()
+                          if self.vars["custom_enabled"].get() else None),
                 test_word=self.vars["test_word"].get(),
                 model_dir=autoclean.MODEL_DIR_DEFAULT,
                 provider="cpu", beep_freq=1000, beep_gain=0.4,

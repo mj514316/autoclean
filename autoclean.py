@@ -16,8 +16,10 @@ Windows target:  input = "CABLE Output" (VB-Cable), output = real speakers
 """
 
 import argparse
+import base64
 import os
 import queue
+import zlib
 import re
 import string
 import sys
@@ -226,10 +228,57 @@ class Censor:
             self.asr_q.task_done()
 
 
+_LIST_KEY = b"autoclean"
+_LIST_MAGIC = b"ACL1:"
+
+
+def decode_list(data: bytes) -> str:
+    """Decode an obfuscated list blob (base64(xor(zlib(text)))).
+    Obfuscation only — keeps slurs out of casual view/diffs; the key is
+    in this file, so it is not encryption."""
+    if data.startswith(_LIST_MAGIC):
+        raw = base64.b64decode(data[len(_LIST_MAGIC):])
+        raw = bytes(b ^ _LIST_KEY[i % len(_LIST_KEY)]
+                    for i, b in enumerate(raw))
+        return zlib.decompress(raw).decode("utf-8")
+    return data.decode("utf-8")
+
+
+def encode_list(text: bytes) -> bytes:
+    raw = zlib.compress(text)
+    raw = bytes(b ^ _LIST_KEY[i % len(_LIST_KEY)]
+                for i, b in enumerate(raw))
+    return _LIST_MAGIC + base64.b64encode(raw)
+
+
 def load_banned(path):
-    with open(path) as f:
-        return {ln.strip().lower() for ln in f
-                if ln.strip() and not ln.startswith("#")}
+    try:
+        with open(path, "rb") as f:
+            text = decode_list(f.read())
+    except OSError:
+        return set()
+    return {ln.strip().lower() for ln in text.splitlines()
+            if ln.strip() and not ln.startswith("#")}
+
+
+def build_banned(args):
+    """Union of selected built-in lists + the user's custom list."""
+    banned = set()
+    for name in (getattr(args, "lists", "") or "").split(","):
+        name = name.strip()
+        if not name:
+            continue
+        if os.path.exists(name):
+            path = name
+        else:
+            path = respath(os.path.join("wordlists", name + ".dat"))
+            if not os.path.exists(path):
+                path = respath(os.path.join("wordlists", name + ".txt"))
+        banned |= load_banned(path)
+    wl = getattr(args, "wordlist", None)
+    if wl:
+        banned |= load_banned(wl)
+    return banned
 
 
 def start_streams(args, cz):
@@ -269,7 +318,7 @@ class Engine:
 
     def __init__(self, args, log=print):
         self.args = args
-        self.cz = Censor(args, load_banned(args.wordlist))
+        self.cz = Censor(args, build_banned(args))
         self.cz.log = log
         self.streams = None
         self.asr_thread = threading.Thread(target=self.cz.asr_loop,
@@ -348,7 +397,11 @@ def main():
     ap.add_argument("--input-device", default=None)
     ap.add_argument("--output-device", default=None)
     ap.add_argument("--delay", type=float, default=1.0)
-    ap.add_argument("--wordlist", default="words.txt")
+    ap.add_argument("--lists", default="profanity",
+                    help="comma-separated built-in lists from wordlists/ "
+                         "(e.g. profanity,sexual,slurs)")
+    ap.add_argument("--wordlist", default="words.txt",
+                    help="custom word list file")
     ap.add_argument("--test-word", default="",
                     help="extra word(s) to censor while testing, "
                          "comma-separated; not added to the word list")
@@ -381,7 +434,7 @@ def main():
         if isinstance(v, str) and v.isdigit():
             setattr(args, attr, int(v))
 
-    cz = Censor(args, load_banned(args.wordlist))
+    cz = Censor(args, build_banned(args))
     th = threading.Thread(target=cz.asr_loop, daemon=True)
     th.start()
 

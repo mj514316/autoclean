@@ -1,7 +1,10 @@
 # PyInstaller spec — build on Windows with: pyinstaller autoclean.spec
+import os
 from PyInstaller.utils.hooks import collect_all
 
-datas = [("model", "model"), ("words.txt", ".")]
+datas = [("model", "model"), ("wordlists", "wordlists")]
+if os.path.exists("words.txt"):
+    datas.append(("words.txt", "."))
 binaries = []
 hiddenimports = []
 

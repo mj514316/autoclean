@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 model/
+wordlists/*.txt
+words.txt
 autoclean.json
 dist/
 build/
