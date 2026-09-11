@@ -2,7 +2,7 @@
 __pycache__/
 *.pyc
 model/
-wordlists/*.txt
+wordlists/
 words.txt
 autoclean.json
 dist/
