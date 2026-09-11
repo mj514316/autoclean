@@ -33,12 +33,18 @@ create a Multi-Output Device in Audio MIDI Setup, and pass `--input-device`.
 
 ## Run / build (Windows target)
 
-1. Install VB-CABLE (vb-audio.com/Cable — free).
-2. Windows Sound settings → output device = **CABLE Input**.
-3. `build_windows.bat` — downloads the ASR model, creates the venv, builds
-   `dist\AutoClean\AutoClean.exe` (the configurator GUI, PyInstaller onedir).
-4. In the app: input device = **CABLE Output**, output = real
-   speakers/headphones. Save settings once; they persist in `autoclean.json`.
+1. Install Python 3.12+ from python.org (tick **"Add python to PATH"**).
+2. Clone this repo: `git clone https://github.com/mj514316/autoclean`
+3. Run `build_windows.bat` — downloads the ASR model, creates a venv, and
+   builds `dist\AutoClean\AutoClean.exe` (the configurator GUI).
+4. Install **VB-CABLE** (vb-audio.com/Cable — free driver, no reboot needed).
+5. Windows Sound settings → output device = **CABLE Input**
+   (all PC audio now flows through the virtual cable).
+6. Launch AutoClean: input device = **CABLE Output**, output = real
+   speakers/headphones → **Start** → **Save settings**.
+
+To auto-start at login: put a shortcut to `AutoClean.exe` in `shell:startup`.
+To bypass: switch the Windows output device back to real speakers.
 
 ## Tuning (all exposed in the configurator)
 
@@ -53,12 +59,14 @@ create a Multi-Output Device in Audio MIDI Setup, and pass `--input-device`.
 
 ## Model
 
-`phase0/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17` (20M params, int8,
-~50x realtime on a single CPU core). Larger sherpa-onnx streaming models are a
+`model/` = sherpa-onnx streaming zipformer English, 20M params, int8
+(~50x realtime on a single CPU core; downloaded by `fetch_model.sh` /
+`build_windows.bat`, not committed). Larger sherpa-onnx streaming models are a
 drop-in upgrade via `--model-dir` if accuracy needs improving.
 
 ## Status
 
-Working prototype. Validated: sim beeps "damn" with 0.26–0.86s headroom across
-delays 0.4–1.0s. Remaining: live-device soak test, Windows run, phrase/topic
-detection (Phase 4), tray packaging (Phase 5).
+Working prototype, validated live on macOS (mic → headphones, real-voice
+detection with mutes landing on target words at 0.8s delay). Remaining:
+Windows end-to-end run, phrase/topic detection, tray icon / auto-start
+polish.
