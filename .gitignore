@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+model/
+autoclean.json
+dist/
+build/
+candidates/
+phase0/*
+!phase0/PHASE0-EVALUATION.md
+.DS_Store

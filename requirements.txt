@@ -1,0 +1,4 @@
+sherpa-onnx
+sounddevice
+numpy
+pyinstaller; sys_platform == "win32"
