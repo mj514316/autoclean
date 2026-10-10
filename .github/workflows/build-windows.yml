@@ -50,9 +50,10 @@ jobs:
         run: python -m PyInstaller --noconfirm autoclean.spec
 
       - name: Zip the app (fail if the exe is missing)
+        shell: powershell
         run: |
-          test -f dist/AutoClean/AutoClean.exe
-          cd dist && zip -r ../AutoClean-windows.zip AutoClean
+          if (-not (Test-Path dist\AutoClean\AutoClean.exe)) { throw "dist\AutoClean\AutoClean.exe is missing - build produced no exe" }
+          Compress-Archive -Path dist\AutoClean -DestinationPath AutoClean-windows.zip -Force
 
       - name: Attach to GitHub Release
         if: github.event_name == 'release'
