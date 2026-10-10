@@ -11,6 +11,10 @@ audio in ──► ring buffer (delay ~0.6s) ──► audio out
                      spliced in before playback
 ```
 
+## Download (Windows, no Python needed)
+
+Grab `AutoClean-windows.zip` from the latest [release](../../releases), unzip, and run `AutoClean.exe`. No install, no Python, no build step — the exe is built automatically on every release. You still need VB-CABLE and the Windows output device set to "CABLE Input" (steps 4-5 under "Run / build (Windows target)" below).
+
 ## Run (Mac dev)
 
 ```sh

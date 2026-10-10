@@ -1,0 +1,68 @@
+name: Build Windows exe
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download ASR model
+        run: |
+          if [ ! -f model/tokens.txt ]; then
+            curl -L -o model.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2"
+            mkdir -p model
+            tar -xjf model.tar.bz2 --strip-components=1 -C model
+            rm model.tar.bz2
+          fi
+
+      - name: Fetch default word list
+        run: |
+          if ! ls wordlists/*.dat >/dev/null 2>&1; then
+            mkdir -p wordlists
+            curl -sL -o wordlists/profanity.txt "https://raw.githubusercontent.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words/master/en"
+            python pack_lists.py
+          fi
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install -r requirements.txt
+
+      - name: Build exe with PyInstaller
+        run: python -m PyInstaller --noconfirm autoclean.spec
+
+      - name: Zip the app (fail if the exe is missing)
+        run: |
+          test -f dist/AutoClean/AutoClean.exe
+          cd dist && zip -r ../AutoClean-windows.zip AutoClean
+
+      - name: Attach to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AutoClean-windows.zip
+
+      - name: Upload build artifact (non-release runs)
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoClean-windows
+          path: AutoClean-windows.zip
